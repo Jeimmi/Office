@@ -10,18 +10,52 @@
 -author("Jeimmi").
 
 %% API
--export([room/2,student/2,officedemo/0]).
-room(Students, Capacity) ->
+-compile(export_all).
+-export([room/3,index_of/2,index_of/3,student/2,studentWork/1,officedemo/0]).
+
+
+
+index_of(Value, List) ->
+  index_of(Value, List, 1).
+index_of(V, [V|T], N) ->
+  N;
+index_of(V, [_|T], N) ->
+  index_of(V, T, N+1);
+index_of(_, [], _) ->
+  false
+.
+
+room(Students, Capacity, Queue) ->
   receive
   % student entering, not at capacity
     {From, enter, Name} when Capacity > 0 ->
       From ! {self(), ok},
-      room([Name|Students], Capacity - 1);
+      room([Name|Students], Capacity - 1, Queue);
 
   % student entering, at capacity
     {From, enter, Name} ->
-      From ! {self(), room_full, rand:uniform(5000)},
-      room(Students, Capacity);
+     % From ! {self(), room_full, rand:uniform(5000)},
+      %room(Students, Capacity, Queue),
+      StuPosition = string:str(Queue, [Name]),
+
+      StuSleep = StuPosition*1000,
+      timer:sleep(StuSleep),
+
+      case lists:member(Name,Queue) of
+        true ->
+          %Student in the queue now check if they are the next one up
+          io:format("~s could not enter and must wait ~B ms.~n", [Name, StuSleep]),
+          timer:sleep(StuSleep),
+          room(Students, Capacity,Queue);
+
+        false ->
+        %Student not in the queue append them in the queue
+          io:format("~s could not enter and must wait ~B ms.~n", [Name, StuSleep]),
+          timer:sleep(StuSleep),
+          room(Students, Capacity,Queue ++ [Name])
+
+      end;
+
 
   % student leaving
     {From, leave, Name} ->
@@ -29,10 +63,10 @@ room(Students, Capacity) ->
       case lists:member(Name, Students) of
         true ->
           From ! {self(), ok},
-          room(lists:delete(Name, Students), Capacity + 1);
+          room(lists:delete(Name, Students), Capacity + 1, Queue);
         false ->
           From ! {self(), not_found},
-          room(Students, Capacity)
+          room(Students, Capacity, Queue)
       end
   end.
 
@@ -59,7 +93,7 @@ student(Office, Name) ->
   end.
 
 officedemo() ->
-  R = spawn(office, room, [[], 3]), % start the room process with an empty list of students
+  R = spawn(office, room, [[], 3, []]), % start the room process with an empty list of students
   spawn(office, student, [R, "Ada"]),
   spawn(office, student, [R, "Barbara"]),
   spawn(office, student, [R, "Charlie"]),
