@@ -11,7 +11,7 @@
 
 %% API
 -compile(export_all).
--export([room/3,index_of/2,index_of/3,student/2,studentWork/1,officedemo/0]).
+
 
 
 
@@ -22,10 +22,13 @@ index_of(V, [V|T], N) ->
 index_of(V, [_|T], N) ->
   index_of(V, T, N+1);
 index_of(_, [], _) ->
-  false
-.
+  false.
 
-room(Students, Capacity, Queue) ->
+first([]) -> undefined;
+first([H|_]) -> H.
+
+
+room(Students, Capacity, Queue, Helping) ->
   receive
   % student entering, not at capacity
     {From, enter, Name} when Capacity > 0 ->
@@ -37,25 +40,24 @@ room(Students, Capacity, Queue) ->
      % From ! {self(), room_full, rand:uniform(5000)},
       %room(Students, Capacity, Queue),
       StuPosition = string:str(Queue, [Name]),
-
       StuSleep = StuPosition*1000,
       timer:sleep(StuSleep),
+      inQueue = lists:member(Name,Queue),
+      inFront = Name =:='Lab5':first(Queue),
 
-      case lists:member(Name,Queue) of
+      if
+        inFront ->
+          From ! {self(), ok},
+          room([Name|Students], Capacity - 1, lists:delete(Name, Queue));
+        inQueue ->
+          From ! {self(), room_full, StuSleep},
+          room(Students, Capacity, Queue);
         true ->
-          %Student in the queue now check if they are the next one up
           io:format("~s could not enter and must wait ~B ms.~n", [Name, StuSleep]),
           timer:sleep(StuSleep),
-          room(Students, Capacity,Queue);
-
-        false ->
-        %Student not in the queue append them in the queue
-          io:format("~s could not enter and must wait ~B ms.~n", [Name, StuSleep]),
-          timer:sleep(StuSleep),
+          From ! {self(), room_full, StuSleep},
           room(Students, Capacity,Queue ++ [Name])
-
       end;
-
 
   % student leaving
     {From, leave, Name} ->
@@ -75,7 +77,7 @@ studentWork(Name) ->
   io:format("~s entered the Office and will work for ~B ms.~n", [Name, SleepTime]),
   timer:sleep(SleepTime).
 
-student(Office, Name) ->
+student(Office, Name, Help) ->
   timer:sleep(rand:uniform(3000)),
   Office ! {self(), enter, Name},
   receive
